@@ -1,98 +1,363 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useFocusEffect, useRouter } from "expo-router";
+import {
+  Bookmark,
+  ChevronDown,
+  ChevronUp,
+  Heart,
+  Highlighter,
+  Search,
+} from "lucide-react-native";
+import { useCallback, useMemo, useState } from "react";
+import {
+  FlatList,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { AppTheme, Colors, Fonts } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { getBibleBooks } from "@/lib/bible";
+import { getAppPreferences, getReadingProgress } from "@/lib/storage";
+import type { BibleBook, ReadingProgress } from "@/types/bible";
 
-export default function HomeScreen() {
+export default function ReadingScreen() {
+  const router = useRouter();
+  const colorScheme = useColorScheme() ?? "light";
+  const colors = Colors[colorScheme];
+
+  const [search, setSearch] = useState("");
+  const [books, setBooks] = useState<BibleBook[]>([]);
+  const [expandedBookId, setExpandedBookId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ReadingProgress | null>(null);
+
+  const loadScreenData = useCallback(async () => {
+    try {
+      const appPreferences = await getAppPreferences();
+      const versionBooks = await getBibleBooks(appPreferences.activeVersionId);
+      const savedProgress = await getReadingProgress();
+
+      setBooks(versionBooks);
+      setProgress(savedProgress);
+    } catch (error) {
+      console.error("Erro ao carregar tela inicial:", error);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadScreenData();
+    }, [loadScreenData]),
+  );
+
+  const filteredBooks = useMemo(() => {
+    const normalized = search.trim().toLowerCase();
+
+    if (!normalized) return books;
+
+    return books.filter((book) => book.name.toLowerCase().includes(normalized));
+  }, [books, search]);
+
+  const handleOpenChapter = (bookId: string, chapterNumber: number) => {
+    router.push({
+      pathname: "/reader/[bookId]/[chapter]",
+      params: {
+        bookId,
+        chapter: String(chapterNumber),
+      },
+    });
+  };
+
+  const handleContinueReading = () => {
+    if (!progress) return;
+
+    router.push({
+      pathname: "/reader/[bookId]/[chapter]",
+      params: {
+        bookId: progress.bookId,
+        chapter: String(progress.chapterNumber),
+        restore: "1",
+      },
+    });
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <SafeAreaView
+      edges={["top"]}
+      style={[styles.safeArea, { backgroundColor: colors.background }]}
+    >
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerSide} />
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>
+            Bíblia
+          </Text>
+
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => router.push("/favorites")}
+              style={[
+                styles.iconButton,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
+              <Heart size={20} color={colors.icon} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => router.push("/highlights")}
+              style={[
+                styles.iconButton,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
+              <Highlighter size={20} color={colors.icon} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View
+          style={[
+            styles.searchWrapper,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              shadowColor: colors.shadow,
+            },
+          ]}
+        >
+          <Search size={18} color={colors.textMuted} />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Procurar livro"
+            placeholderTextColor={colors.textMuted}
+            style={[styles.searchInput, { color: colors.text }]}
+          />
+        </View>
+
+        <FlatList
+          data={filteredBooks}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listWrapper}
+          renderItem={({ item }) => {
+            const expanded = expandedBookId === item.id;
+
+            return (
+              <View style={styles.bookBlock}>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() =>
+                    setExpandedBookId((current) =>
+                      current === item.id ? null : item.id,
+                    )
+                  }
+                  style={[
+                    styles.bookItem,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      shadowColor: colors.shadow,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.bookText, { color: colors.text }]}>
+                    {item.name}
+                  </Text>
+
+                  {expanded ? (
+                    <ChevronUp size={18} color={colors.textMuted} />
+                  ) : (
+                    <ChevronDown size={18} color={colors.textMuted} />
+                  )}
+                </TouchableOpacity>
+
+                {expanded && (
+                  <View
+                    style={[
+                      styles.chapterGrid,
+                      {
+                        backgroundColor: colors.card,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                  >
+                    {Array.from(
+                      { length: item.chapterCount },
+                      (_, index) => index + 1,
+                    ).map((chapterNumber) => (
+                      <TouchableOpacity
+                        key={`${item.id}-${chapterNumber}`}
+                        activeOpacity={0.85}
+                        onPress={() =>
+                          handleOpenChapter(item.id, chapterNumber)
+                        }
+                        style={[
+                          styles.chapterButton,
+                          {
+                            backgroundColor: colors.surfaceSoft,
+                            borderColor: colors.border,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.chapterButtonText,
+                            { color: colors.text },
+                          ]}
+                        >
+                          {chapterNumber}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            );
+          }}
+        />
+
+        {progress && (
+          <TouchableOpacity
+            activeOpacity={0.88}
+            onPress={handleContinueReading}
+            style={[
+              styles.floatingBookmark,
+              {
+                backgroundColor: colors.primary,
+                shadowColor: colors.shadow,
+              },
+            ]}
+          >
+            <Bookmark size={22} color="#FFF8F1" fill="#FFF8F1" />
+          </TouchableOpacity>
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  safeArea: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+    paddingHorizontal: AppTheme.spacing.lg,
+    paddingTop: AppTheme.spacing.lg,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: AppTheme.spacing.lg,
+  },
+  headerSide: {
+    width: 44,
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 24,
+    fontFamily: Fonts.serif,
+    fontWeight: "700",
+  },
+  headerActions: {
+    width: 72,
+    flexDirection: "row",
+    justifyContent: "flex-end",
     gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  iconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: AppTheme.radius.pill,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  searchWrapper: {
+    height: 54,
+    borderRadius: AppTheme.radius.xl,
+    borderWidth: 1,
+    paddingHorizontal: AppTheme.spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: AppTheme.spacing.lg,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 2,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 15,
+    fontFamily: Fonts.sans,
+  },
+  listWrapper: {
+    paddingBottom: 120,
+  },
+  bookBlock: {
+    marginBottom: 12,
+  },
+  bookItem: {
+    minHeight: 62,
+    borderRadius: AppTheme.radius.lg,
+    borderWidth: 1,
+    justifyContent: "space-between",
+    alignItems: "center",
+    flexDirection: "row",
+    paddingHorizontal: AppTheme.spacing.lg,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
+    elevation: 1,
+  },
+  bookText: {
+    fontSize: 18,
+    fontFamily: Fonts.serif,
+    fontWeight: "600",
+  },
+  chapterGrid: {
+    marginTop: 10,
+    borderRadius: AppTheme.radius.lg,
+    borderWidth: 1,
+    padding: 12,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  chapterButton: {
+    width: 46,
+    height: 46,
+    borderRadius: AppTheme.radius.md,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chapterButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  floatingBookmark: {
+    position: "absolute",
+    right: 20,
+    bottom: 92,
+    width: 56,
+    height: 56,
+    borderRadius: AppTheme.radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 18,
+    elevation: 5,
   },
 });
