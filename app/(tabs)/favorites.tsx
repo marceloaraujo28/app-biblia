@@ -78,6 +78,7 @@ export default function FavoritesScreen() {
                   params: {
                     bookId: item.bookId,
                     chapter: String(item.chapterNumber),
+                    restore: "0",
                   },
                 })
               }

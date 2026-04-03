@@ -62,7 +62,12 @@ export default function ReaderChapterScreen() {
 
   const listRef = useRef<FlatList<string>>(null);
   const hasRestoredRef = useRef(false);
+
+  const lastRestoreSessionRef = useRef<string>("");
   const lastSavedVerseRef = useRef<number | null>(null);
+  const persistReadingProgressRef = useRef<
+    (verseNumber: number) => Promise<void>
+  >(() => Promise.resolve());
 
   const [versionId, setVersionId] = useState<BibleVersionId>("nvi");
   const [preferences, setPreferences] = useState<ReaderPreferences>({
@@ -113,6 +118,10 @@ export default function ReaderChapterScreen() {
     [versionId, bookId, chapterNumber],
   );
 
+  useEffect(() => {
+    persistReadingProgressRef.current = persistReadingProgress;
+  }, [persistReadingProgress]);
+
   const loadScreen = useCallback(async () => {
     const appPreferences = await getAppPreferences();
 
@@ -136,10 +145,11 @@ export default function ReaderChapterScreen() {
   }, [bookId, chapterNumber]);
 
   useEffect(() => {
+    setVerses([]);
     hasRestoredRef.current = false;
     lastSavedVerseRef.current = null;
     setRestoreVerseNumber(null);
-  }, [bookId, chapterNumber, restore]);
+  }, [bookId, chapterNumber]);
 
   useEffect(() => {
     void loadScreen();
@@ -152,11 +162,13 @@ export default function ReaderChapterScreen() {
         return;
       }
 
+      const sessionKey = `${bookId}:${chapterNumber}:${restore}`;
+      if (lastRestoreSessionRef.current === sessionKey) return;
+
       const savedProgress = await getReadingProgress();
 
       if (
         savedProgress &&
-        savedProgress.versionId === versionId &&
         savedProgress.bookId === bookId &&
         savedProgress.chapterNumber === chapterNumber
       ) {
@@ -165,6 +177,7 @@ export default function ReaderChapterScreen() {
           Math.max(verses.length, 1),
         );
 
+        lastRestoreSessionRef.current = sessionKey;
         setRestoreVerseNumber(safeVerseNumber);
         return;
       }
@@ -175,7 +188,7 @@ export default function ReaderChapterScreen() {
     if (verses.length > 0) {
       void loadRestoreProgress();
     }
-  }, [shouldRestoreScroll, versionId, bookId, chapterNumber, verses.length]);
+  }, [shouldRestoreScroll, bookId, chapterNumber, restore, verses.length]);
 
   useEffect(() => {
     if (!shouldRestoreScroll) return;
@@ -297,7 +310,8 @@ export default function ReaderChapterScreen() {
       if (firstVisible?.index == null) return;
 
       const verseNumber = firstVisible.index + 1;
-      await persistReadingProgress(verseNumber);
+
+      await persistReadingProgressRef.current(verseNumber);
     },
   ).current;
 
@@ -340,6 +354,7 @@ export default function ReaderChapterScreen() {
         </View>
 
         <FlatList
+          key={`${bookId}-${chapterNumber}`}
           ref={listRef}
           data={verses}
           keyExtractor={(_, index) => `${bookId}-${chapterNumber}-${index + 1}`}

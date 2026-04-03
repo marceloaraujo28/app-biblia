@@ -85,6 +85,7 @@ export default function HighlightsScreen() {
                   params: {
                     bookId: item.bookId,
                     chapter: String(item.chapterNumber),
+                    restore: "0",
                   },
                 })
               }

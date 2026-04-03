@@ -67,6 +67,7 @@ export default function ReadingScreen() {
       params: {
         bookId,
         chapter: String(chapterNumber),
+        restore: "0",
       },
     });
   };
